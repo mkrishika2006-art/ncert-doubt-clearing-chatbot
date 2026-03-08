@@ -19,12 +19,11 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from dotenv import load_dotenv
 import os
-import json
 from collections import Counter
-from datetime import datetime, timedelta
 from audio import generate_audio_from_text
 from topic_logger import log_topic
 from streak_manager import update_streak
+from database import get_connection
 
 load_dotenv()
 
@@ -42,7 +41,7 @@ mode = st.sidebar.radio(
 )
 
 # =============================
-# TEACHER MODE
+# 👩‍🏫 TEACHER MODE
 # =============================
 if mode == "Teacher":
 
@@ -53,21 +52,21 @@ if mode == "Teacher":
         st.title("👩‍🏫 Teacher Dashboard")
 
         try:
-            with open("topic_logs.json") as f:
-                data = json.load(f)
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT topic FROM topics WHERE time >= NOW() - INTERVAL 7 DAY"
+            )
+
+            rows = cursor.fetchall()
+            filtered_topics = [row[0] for row in rows]
+
+            cursor.close()
+            conn.close()
+
         except:
-            data = []
-
-        last_week = datetime.now() - timedelta(days=7)
-        filtered_topics = []
-
-        for item in data:
-            try:
-                time = datetime.fromisoformat(item["time"])
-                if time >= last_week:
-                    filtered_topics.append(item["topic"])
-            except:
-                pass
+            filtered_topics = []
 
         counts = Counter(filtered_topics)
 
@@ -93,18 +92,30 @@ if mode == "Teacher":
 
 
 # =============================
-# STUDENT MODE
+# 🤖 STUDENT MODE
 # =============================
 if mode == "Student":
 
     st.title("🤖 NCERT Hinglish Doubt Bot")
     st.write("Ask your Science / Maths doubts in Hinglish or Tanglish")
 
-    # -------- STREAK DISPLAY --------
+    # -------- STREAK DISPLAY FROM MYSQL --------
     try:
-        with open("streak_data.json") as f:
-            streak_data = json.load(f)
-            current_streak = streak_data.get("streak", 0)
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT streak FROM streaks ORDER BY id DESC LIMIT 1")
+
+        result = cursor.fetchone()
+
+        if result:
+            current_streak = result[0]
+        else:
+            current_streak = 0
+
+        cursor.close()
+        conn.close()
+
     except:
         current_streak = 0
 
@@ -119,13 +130,16 @@ if mode == "Student":
         st.session_state.question = None
 
     # -------- LOAD SYLLABUS --------
-    with open("syllabus.txt", "r", encoding="utf-8") as f:
-        text = f.read()
+    try:
+        with open("syllabus.txt", "r", encoding="utf-8") as f:
+            text = f.read()
+    except:
+        text = ""
 
     # -------- LLM SETUP --------
     llm = ChatGroq(
         api_key=os.getenv("GROQ_API_KEY"),
-        model="llama-3.1-8b-instant",
+        model="llama3-8b-8192",
         temperature=0
     )
 
@@ -162,9 +176,11 @@ Else respond that the question is out of syllabus.
 
     if question:
 
-        # Update streak
+        # Update learning streak
         new_streak = update_streak()
-        st.sidebar.success(f"🔥 {new_streak} Day Streak")
+
+        st.sidebar.subheader("🔥 Learning Streak")
+        st.sidebar.success(f"{new_streak} Day Streak")
 
         st.session_state.question = question
 
@@ -198,7 +214,7 @@ Else respond that the question is out of syllabus.
     if st.session_state.response:
         with st.chat_message("assistant"):
 
-            col1, col2 = st.columns([9, 1])
+            col1, col2 = st.columns([9,1])
 
             with col1:
                 st.write(st.session_state.response)
@@ -209,6 +225,3 @@ Else respond that the question is out of syllabus.
                         st.session_state.response
                     )
                     st.audio(audio_file)
-
-
-
