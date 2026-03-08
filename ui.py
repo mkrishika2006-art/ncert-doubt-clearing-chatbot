@@ -81,7 +81,7 @@ if mode == "Teacher":
 # STUDENT MODE
 # =============================
 if mode == "Student":
-    st.title("🤖 NCERT Hinglish Doubt Bot")
+    st.title("🤖 NCERT Hinglish/Tanglish Doubt Bot")
     st.write("Ask your Science / Maths doubts in Hinglish, Hindi, or Tanglish")
 
     # -------- STREAK INITIALIZATION --------
@@ -163,3 +163,4 @@ Otherwise respond that the question is out of syllabus.
                 if st.button("🔊", key="speak"):
                     audio_file = generate_audio_from_text(st.session_state.response)
                     st.audio(audio_file)
+
