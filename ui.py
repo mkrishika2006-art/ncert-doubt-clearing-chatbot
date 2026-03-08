@@ -1,15 +1,16 @@
+# ui.py
+
 import streamlit as st
 from collections import Counter
-from llm_chat import chain  # import your LLM chain
+from llm_chat import chain  # your LLM chain
 from audio import generate_audio_from_text
 from topic_logger import log_topic
 from streak_manager import update_streak
-from database import get_connection
 
 # -------------------------
 # Streamlit Page Config
 # -------------------------
-st.set_page_config(page_title="NCERT English/Hinglish/tanglish Doubt-clearing Bot", page_icon="🤖")
+st.set_page_config(page_title="NCERT Hinglish Doubt Bot", page_icon="🤖")
 
 # -------------------------
 # Load CSS
@@ -42,19 +43,20 @@ if mode == "Teacher":
 
     if password == "teacher123":
         st.title("👩‍🏫 Teacher Dashboard")
+
         try:
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT topic FROM topics WHERE time >= NOW() - INTERVAL 7 DAY"
-            )
-            rows = cursor.fetchall()
-            filtered_topics = [row[0] for row in rows]
-            cursor.close()
-            conn.close()
-        except Exception as e:
+            # Load topics from JSON
+            import json
+            from database import get_connection
+
+            db_file = get_connection()
+            with open(db_file, "r") as f:
+                data = json.load(f)
+
+            filtered_topics = [t["topic"] for t in data.get("topics", []) if t["time"] >= (datetime.now() - timedelta(days=7)).isoformat()]
+
+        except:
             filtered_topics = []
-            st.error(f"Database Error: {str(e)}")
 
         counts = Counter(filtered_topics)
         st.subheader("📊 Most Asked Topics (Last 7 Days)")
@@ -65,6 +67,7 @@ if mode == "Teacher":
                 "Questions": list(counts.values())
             }
             st.bar_chart(chart_data)
+
             for topic, count in counts.most_common():
                 st.write(f"**{topic}** → {count} questions")
         else:
@@ -76,23 +79,14 @@ if mode == "Teacher":
 # STUDENT MODE
 # =============================
 if mode == "Student":
-    st.title("🤖 NCERT English/Tanglish/Hinglish Doubt Bot")
-    st.write("Ask your Science / Maths doubts in Hinglish, Hindi, or Tanglish")
+    st.title("🤖 NCERT Hinglish Doubt Bot")
+    st.write("Ask your Science / Maths doubts in Hinglish or Tanglish")
 
     # -------- STREAK INITIALIZATION --------
     if "streak" not in st.session_state:
-        try:
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT streak FROM streaks ORDER BY id DESC LIMIT 1")
-            result = cursor.fetchone()
-            st.session_state.streak = result[0] if result else 0
-            cursor.close()
-            conn.close()
-        except:
-            st.session_state.streak = 0
+        st.session_state.streak = update_streak()
 
-    # Display streak in sidebar (only once)
+    # Display streak in sidebar
     st.sidebar.subheader("🔥 Learning Streak")
     st.sidebar.success(f"{st.session_state.streak} Day Streak")
 
@@ -131,10 +125,10 @@ if mode == "Student":
         try:
             response = chain.invoke({
                 "question": question,
-                "text": text[:2000]  # optional syllabus context
+                "text": text[:2000]
             })
         except Exception as e:
-            response = f"⚠️ AI is busy right now. ({str(e)})"
+            response = f"⚠️ Error: {str(e)}"
 
         st.session_state.response = response
 
@@ -145,11 +139,10 @@ if mode == "Student":
 
     if st.session_state.response:
         with st.chat_message("assistant"):
-            col1, col2 = st.columns([9,1])
+            col1, col2 = st.columns([9, 1])
             with col1:
                 st.write(st.session_state.response)
             with col2:
                 if st.button("🔊"):
-                    # Generate audio bytes and play directly
-                    audio_bytes = generate_audio_from_text(st.session_state.response)
-                    st.audio(audio_bytes, format="audio/mp3")
+                    audio_file = generate_audio_from_text(st.session_state.response)
+                    st.audio(audio_file)
