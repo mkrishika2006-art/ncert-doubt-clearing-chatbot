@@ -5,5 +5,5 @@ streamlit
 pypdf
 langchain-huggingface
 sentence-transformers
-mysql-connector-python
 pyttsx3
+gTTS==2.4.5
