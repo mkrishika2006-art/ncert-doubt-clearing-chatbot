@@ -5,4 +5,5 @@ streamlit
 pypdf
 langchain-huggingface
 sentence-transformers
+mysql-connector-python
 pyttsx3
