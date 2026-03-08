@@ -1,20 +1,17 @@
 # database.py
 
-# Optional fallback if MySQL is not installed
-try:
-    import mysql.connector
-except ModuleNotFoundError:
-    mysql = None
-    print("⚠️ MySQL not installed, database features will be disabled.")
+import json
+from pathlib import Path
+
+DB_FILE = Path("db.json")
 
 def get_connection():
-    if mysql is None:
-        raise RuntimeError("Database not available. MySQL module not installed.")
+    """
+    Dummy function to replace MySQL.
+    We'll read/write directly to db.json for streaks and topics.
+    """
+    if not DB_FILE.exists():
+        DB_FILE.write_text(json.dumps({"streaks": [], "topics": []}, indent=2))
+    return DB_FILE
     
-    # Change these values if you have a real DB
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="password",
-        database="chatbot_db"
-    )
+
