@@ -1,13 +1,20 @@
+# topic_logger.py
+
+from datetime import datetime
 from database import get_connection
+import json
 
 def log_topic(topic):
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO topics (topic, time) VALUES (%s, NOW())", (topic,))
-        conn.commit()
-        cursor.close()
-        conn.close()
-    except RuntimeError:
-        # Database not available, skip logging
-        print(f"⚠️ Skipping topic logging for '{topic}' because DB is not available.")
+    db_file = get_connection()
+
+    # Load data
+    with open(db_file, "r") as f:
+        data = json.load(f)
+
+    topics = data.get("topics", [])
+
+    topics.append({"topic": topic, "time": datetime.now().isoformat()})
+    data["topics"] = topics
+
+    with open(db_file, "w") as f:
+        json.dump(data, f, indent=2)
