@@ -1,20 +1,9 @@
-# ui.py
-
 import streamlit as st
-from collections import Counter
-from llm_chat import chain  # your LLM chain
-from audio import generate_audio_from_text
-from topic_logger import log_topic
-from streak_manager import update_streak
 
-# -------------------------
-# Streamlit Page Config
-# -------------------------
+# MUST be first Streamlit command
 st.set_page_config(page_title="NCERT Hinglish Doubt Bot", page_icon="🤖")
 
-# -------------------------
-# Load CSS
-# -------------------------
+# -------- LOAD CSS --------
 def load_css():
     try:
         with open("style.css") as f:
@@ -24,111 +13,180 @@ def load_css():
 
 load_css()
 
-# -------------------------
-# Sidebar
-# -------------------------
+# -------- IMPORTS --------
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from dotenv import load_dotenv
+import os
+import json
+from collections import Counter
+from datetime import datetime, timedelta
+from audio import generate_audio_from_text
+from topic_logger import log_topic
+from streak_manager import update_streak
+
+load_dotenv()
+
+# -------- SIDEBAR --------
 st.sidebar.image(
     "https://cdn-icons-png.flaticon.com/512/4712/4712109.png",
     width=80
 )
+
 st.sidebar.title("NCERT AI Tutor")
 
-mode = st.sidebar.radio("Select Mode", ["Student", "Teacher"])
+mode = st.sidebar.radio(
+    "Select Mode",
+    ["Student", "Teacher"]
+)
 
 # =============================
 # TEACHER MODE
 # =============================
 if mode == "Teacher":
+
     password = st.sidebar.text_input("Teacher Password", type="password")
 
     if password == "teacher123":
+
         st.title("👩‍🏫 Teacher Dashboard")
 
         try:
-            # Load topics from JSON
-            import json
-            from database import get_connection
-
-            db_file = get_connection()
-            with open(db_file, "r") as f:
+            with open("topic_logs.json") as f:
                 data = json.load(f)
-
-            filtered_topics = [t["topic"] for t in data.get("topics", []) if t["time"] >= (datetime.now() - timedelta(days=7)).isoformat()]
-
         except:
-            filtered_topics = []
+            data = []
+
+        last_week = datetime.now() - timedelta(days=7)
+        filtered_topics = []
+
+        for item in data:
+            try:
+                time = datetime.fromisoformat(item["time"])
+                if time >= last_week:
+                    filtered_topics.append(item["topic"])
+            except:
+                pass
 
         counts = Counter(filtered_topics)
+
         st.subheader("📊 Most Asked Topics (Last 7 Days)")
 
         if counts:
+
             chart_data = {
                 "Topic": list(counts.keys()),
                 "Questions": list(counts.values())
             }
+
             st.bar_chart(chart_data)
 
             for topic, count in counts.most_common():
                 st.write(f"**{topic}** → {count} questions")
+
         else:
             st.info("No questions asked this week.")
+
     else:
         st.warning("Enter teacher password to access dashboard")
+
 
 # =============================
 # STUDENT MODE
 # =============================
 if mode == "Student":
+
     st.title("🤖 NCERT Hinglish Doubt Bot")
     st.write("Ask your Science / Maths doubts in Hinglish or Tanglish")
 
-    # -------- STREAK INITIALIZATION --------
-    if "streak" not in st.session_state:
-        st.session_state.streak = update_streak()
+    # -------- STREAK DISPLAY --------
+    try:
+        with open("streak_data.json") as f:
+            streak_data = json.load(f)
+            current_streak = streak_data.get("streak", 0)
+    except:
+        current_streak = 0
 
-    # Display streak in sidebar
     st.sidebar.subheader("🔥 Learning Streak")
-    st.sidebar.success(f"{st.session_state.streak} Day Streak")
+    st.sidebar.success(f"{current_streak} Day Streak")
 
-    # -------- SESSION STATE FOR CHAT --------
+    # -------- SESSION STATE --------
     if "response" not in st.session_state:
         st.session_state.response = None
+
     if "question" not in st.session_state:
         st.session_state.question = None
 
     # -------- LOAD SYLLABUS --------
-    try:
-        with open("syllabus.txt", "r", encoding="utf-8") as f:
-            text = f.read()
-    except:
-        text = "text_chunking"
+    with open("syllabus.txt", "r", encoding="utf-8") as f:
+        text = f.read()
+
+    # -------- LLM SETUP --------
+    llm = ChatGroq(
+        api_key=os.getenv("GROQ_API_KEY"),
+        model="llama3-8b-8192",
+        temperature=0
+    )
+
+    prompt = ChatPromptTemplate.from_template(
+"""
+You are a friendly NCERT teacher for Class 9–10 students.
+
+Step 1: Detect the language style used by the student.
+
+Language rules:
+- Tamil words written in English letters → Tanglish
+
+Step 2: Reply in the SAME language style.
+
+Use simple explanations with examples.
+
+Question:
+{question}
+
+Explain clearly.
+
+Answer only if the question falls under this syllabus:
+{text}
+
+Else respond that the question is out of syllabus.
+"""
+    )
+
+    parser = StrOutputParser()
+    chain = prompt | llm | parser
 
     # -------- CHAT INPUT --------
     question = st.chat_input("Ask your doubt...")
 
     if question:
+
         # Update streak
-        st.session_state.streak = update_streak()
+        new_streak = update_streak()
+        st.sidebar.success(f"🔥 {new_streak} Day Streak")
 
         st.session_state.question = question
 
         # -------- TOPIC LOGGING --------
         q = question.lower()
+
         if "photosynthesis" in q:
             log_topic("Photosynthesis")
+
         if "trigonometry" in q:
             log_topic("Trigonometry")
+
         if "electric" in q:
             log_topic("Electric Circuits")
 
-        # -------- GET RESPONSE FROM LLM --------
         try:
             response = chain.invoke({
                 "question": question,
                 "text": text[:2000]
             })
-        except Exception as e:
-            response = f"⚠️ Error: {str(e)}"
+        except:
+            response = "⚠️ AI is busy right now. Please try again in a few minutes."
 
         st.session_state.response = response
 
@@ -139,11 +197,17 @@ if mode == "Student":
 
     if st.session_state.response:
         with st.chat_message("assistant"):
+
             col1, col2 = st.columns([9, 1])
+
             with col1:
                 st.write(st.session_state.response)
+
             with col2:
                 if st.button("🔊"):
-                    audio_file = generate_audio_from_text(st.session_state.response)
+                    audio_file = generate_audio_from_text(
+                        st.session_state.response
+                    )
                     st.audio(audio_file)
+
 
