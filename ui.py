@@ -1,11 +1,12 @@
-# ui.py
-
 import streamlit as st
 from collections import Counter
 from llm_chat import chain  # your LLM chain
 from audio import generate_audio_from_text
 from topic_logger import log_topic
 from streak_manager import update_streak
+import json
+from pathlib import Path
+from datetime import datetime, timedelta
 
 # -------------------------
 # Streamlit Page Config
@@ -44,19 +45,20 @@ if mode == "Teacher":
     if password == "teacher123":
         st.title("👩‍🏫 Teacher Dashboard")
 
-        try:
-            # Load topics from JSON
-            import json
-            from database import get_connection
+        # Load topics from JSON
+        db_file = Path("db.json")
+        if db_file.exists():
+            data = json.loads(db_file.read_text())
+            all_topics = data.get("topics", [])
+        else:
+            all_topics = []
 
-            db_file = get_connection()
-            with open(db_file, "r") as f:
-                data = json.load(f)
-
-            filtered_topics = [t["topic"] for t in data.get("topics", []) if t["time"] >= (datetime.now() - timedelta(days=7)).isoformat()]
-
-        except:
-            filtered_topics = []
+        # Filter last 7 days
+        week_ago = datetime.now() - timedelta(days=7)
+        filtered_topics = [
+            t["topic"] for t in all_topics
+            if datetime.fromisoformat(t["time"]) >= week_ago
+        ]
 
         counts = Counter(filtered_topics)
         st.subheader("📊 Most Asked Topics (Last 7 Days)")
@@ -73,14 +75,14 @@ if mode == "Teacher":
         else:
             st.info("No questions asked this week.")
     else:
-        st.warning("Enter teacher password to access dashboard")
+        st.warning("Enter the correct teacher password")
 
 # =============================
 # STUDENT MODE
 # =============================
 if mode == "Student":
     st.title("🤖 NCERT Hinglish Doubt Bot")
-    st.write("Ask your Science / Maths doubts in Hinglish or Tanglish")
+    st.write("Ask your Science / Maths doubts in Hinglish, Hindi, or Tanglish")
 
     # -------- STREAK INITIALIZATION --------
     if "streak" not in st.session_state:
@@ -90,7 +92,7 @@ if mode == "Student":
     st.sidebar.subheader("🔥 Learning Streak")
     st.sidebar.success(f"{st.session_state.streak} Day Streak")
 
-    # -------- SESSION STATE FOR CHAT --------
+    # -------- CHAT SESSION STATE --------
     if "response" not in st.session_state:
         st.session_state.response = None
     if "question" not in st.session_state:
@@ -99,9 +101,9 @@ if mode == "Student":
     # -------- LOAD SYLLABUS --------
     try:
         with open("syllabus.txt", "r", encoding="utf-8") as f:
-            text = f.read()
+            syllabus_text = f.read()
     except:
-        text = ""
+        syllabus_text = ""
 
     # -------- CHAT INPUT --------
     question = st.chat_input("Ask your doubt...")
@@ -109,10 +111,9 @@ if mode == "Student":
     if question:
         # Update streak
         st.session_state.streak = update_streak()
-
         st.session_state.question = question
 
-        # -------- TOPIC LOGGING --------
+        # TOPIC LOGGING
         q = question.lower()
         if "photosynthesis" in q:
             log_topic("Photosynthesis")
@@ -121,13 +122,7 @@ if mode == "Student":
         if "electric" in q:
             log_topic("Electric Circuits")
 
-        # -------- GET RESPONSE FROM LLM --------
-        try:
-            response = chain.invoke({
-                # -------- GET RESPONSE FROM LLM --------
-if question:
-    try:
-        # Construct the system prompt with syllabus and teacher instructions
+        # LLM Prompt (with language & syllabus instructions)
         system_prompt = f"""
 You are a friendly NCERT teacher for Class 9–10 students.
 Step 1: Detect the language style used by the student.
@@ -139,22 +134,18 @@ Use simple explanations with examples.
 Question: {question}
 Explain clearly.
 Answer only if question falls under this syllabus:
-{text[:2000]}
+{syllabus_text[:2000]}
 Otherwise respond that the question is out of syllabus.
 """
 
-        response = chain.invoke({
-            "question": question,
-            "text": system_prompt
-        })
-
-    except Exception as e:
-        response = f"⚠️ Error: {str(e)}"
-
-    st.session_state.response = response
+        # Get AI response
+        try:
+            response = chain.invoke({
+                "question": question,
+                "text": system_prompt
             })
         except Exception as e:
-            response = f"⚠️ Error: {str(e)}"
+            response = f"⚠️ Error generating answer: {str(e)}"
 
         st.session_state.response = response
 
@@ -165,11 +156,10 @@ Otherwise respond that the question is out of syllabus.
 
     if st.session_state.response:
         with st.chat_message("assistant"):
-            col1, col2 = st.columns([9, 1])
+            col1, col2 = st.columns([9,1])
             with col1:
                 st.write(st.session_state.response)
             with col2:
-                if st.button("🔊"):
+                if st.button("🔊", key="speak"):
                     audio_file = generate_audio_from_text(st.session_state.response)
                     st.audio(audio_file)
-
