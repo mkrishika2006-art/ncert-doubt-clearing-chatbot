@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 # -------------------------
 # Streamlit Page Config
 # -------------------------
-st.set_page_config(page_title="NCERT Hinglish Doubt Bot", page_icon="🤖")
+st.set_page_config(page_title="NCERT Hinglish/tanglish Doubt Bot", page_icon="🤖")
 
 # -------------------------
 # Load CSS
@@ -163,4 +163,5 @@ Otherwise respond that the question is out of syllabus.
                 if st.button("🔊", key="speak"):
                     audio_file = generate_audio_from_text(st.session_state.response)
                     st.audio(audio_file)
+
 
