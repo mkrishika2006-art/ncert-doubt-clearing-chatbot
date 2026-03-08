@@ -81,7 +81,7 @@ if mode == "Teacher":
 # STUDENT MODE
 # =============================
 if mode == "Student":
-    st.title("🤖 NCERT Hinglish/Tanglish Doubt Bot")
+    st.title("🤖 NCERT Hinglish Doubt Bot")
     st.write("Ask your Science / Maths doubts in Hinglish, Hindi, or Tanglish")
 
     # -------- STREAK INITIALIZATION --------
