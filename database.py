@@ -1,10 +1,20 @@
-import mysql.connector
+# database.py
+
+# Optional fallback if MySQL is not installed
+try:
+    import mysql.connector
+except ModuleNotFoundError:
+    mysql = None
+    print("⚠️ MySQL not installed, database features will be disabled.")
 
 def get_connection():
-    conn = mysql.connector.connect(
+    if mysql is None:
+        raise RuntimeError("Database not available. MySQL module not installed.")
+    
+    # Change these values if you have a real DB
+    return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="root",
-        database="ncert_ai_tutor"
+        password="password",
+        database="chatbot_db"
     )
-    return conn
