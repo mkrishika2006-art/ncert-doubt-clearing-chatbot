@@ -1,9 +1,8 @@
 langchain
 langchain-groq
-dotenv
-streamlit
-pypdf
 langchain-huggingface
 sentence-transformers
-pyttsx3
+streamlit
+pypdf
+python-dotenv
 gTTS==2.4.5
