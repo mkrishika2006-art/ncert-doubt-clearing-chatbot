@@ -125,7 +125,7 @@ if mode == "Student":
     # -------- LLM SETUP --------
     llm = ChatGroq(
         api_key=os.getenv("GROQ_API_KEY"),
-        model="llama3-8b-8192",
+        model="llama-3.1-8b-instant",
         temperature=0
     )
 
@@ -209,5 +209,6 @@ Else respond that the question is out of syllabus.
                         st.session_state.response
                     )
                     st.audio(audio_file)
+
 
 
