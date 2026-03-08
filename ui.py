@@ -101,7 +101,7 @@ if mode == "Student":
         with open("syllabus.txt", "r", encoding="utf-8") as f:
             text = f.read()
     except:
-        text = ""
+        text = "text_chunking"
 
     # -------- CHAT INPUT --------
     question = st.chat_input("Ask your doubt...")
@@ -146,3 +146,4 @@ if mode == "Student":
                 if st.button("🔊"):
                     audio_file = generate_audio_from_text(st.session_state.response)
                     st.audio(audio_file)
+
