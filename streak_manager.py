@@ -2,44 +2,37 @@
 
 from datetime import date, timedelta
 from database import get_connection
+import json
 
 def update_streak():
     today = date.today()
+    db_file = get_connection()
 
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
+    # Load data
+    with open(db_file, "r") as f:
+        data = json.load(f)
 
-        # Get the latest streak
-        cursor.execute("SELECT last_login, streak FROM streaks ORDER BY id DESC LIMIT 1")
-        result = cursor.fetchone()
+    streaks = data.get("streaks", [])
 
-        if result:
-            last_login, streak = result
+    if streaks:
+        last_entry = streaks[-1]
+        last_login = date.fromisoformat(last_entry["last_login"])
+        streak = last_entry["streak"]
 
-            if last_login == today:
-                return streak  # Already updated today
-
-            elif last_login == today - timedelta(days=1):
-                streak += 1  # Continue streak
-            else:
-                streak = 1  # Reset streak
+        if last_login == today:
+            return streak
+        elif last_login == today - timedelta(days=1):
+            streak += 1
         else:
-            streak = 1  # First streak
+            streak = 1
+    else:
+        streak = 1
 
-        # Save the new streak
-        cursor.execute(
-            "INSERT INTO streaks (last_login, streak) VALUES (%s, %s)",
-            (today, streak)
-        )
+    # Append new streak
+    streaks.append({"last_login": today.isoformat(), "streak": streak})
+    data["streaks"] = streaks
 
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-    except RuntimeError:
-        # Database not available, skip saving streak
-        print(f"⚠️ Skipping streak update; DB not available.")
-        streak = 1  # Optional: always return 1 if no DB
+    with open(db_file, "w") as f:
+        json.dump(data, f, indent=2)
 
     return streak
